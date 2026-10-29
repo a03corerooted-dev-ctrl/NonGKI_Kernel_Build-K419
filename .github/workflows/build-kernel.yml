@@ -267,7 +267,21 @@ jobs:
         # 4.19 uses a common MT6768 base config plus the device-specific fragment.
         ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG"
 
-        CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
+                CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
+
+        # Final safety net for MGLRU/LRU_GEN on the merged 4.19 config.
+        for opt in \
+          CONFIG_MEMCG \
+          CONFIG_MEMCG_SWAP \
+          CONFIG_LRU_GEN \
+          CONFIG_LRU_GEN_ENABLED
+        do
+          if grep -q "^${opt}=" "$CONFIG_FILE"; then
+            sed -i "s|^${opt}=.*|${opt}=y|" "$CONFIG_FILE"
+          else
+            echo "${opt}=y" >> "$CONFIG_FILE"
+          fi
+        done
 
         if [ "${{ env.ENABLE_KERNELSU }}" = true ]; then
             if [ "${{ env.KSU_HOOKS_PATCH }}" = true ]; then
