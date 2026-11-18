@@ -6,6 +6,7 @@ on:
         description: 'Select device:'
         required: true
         type: choice
+        default: 'merlin'
         options:
         - 'lancelot'
         - 'merlin'
@@ -13,12 +14,12 @@ on:
       build_ksun:
         description: 'Build KernelSU-Next A13+'
         required: true
-        default: true
+        default: false
         type: boolean
       build_ksun_old:
         description: 'Build KernelSU-Next A11+'
         required: true
-        default: true
+        default: false
         type: boolean
       build_xxksu:
         description: 'Build xxksu A13+'
@@ -28,7 +29,7 @@ on:
       build_xxksu_old:
         description: 'Build xxksu A11+'
         required: true
-        default: true
+        default: false
         type: boolean
 
 jobs:
@@ -266,7 +267,27 @@ jobs:
         echo "Device fragment: $DEVICE_CONFIG"
 
         # 4.19 uses a common MT6768 base config plus the device-specific fragment.
-        ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG"
+        # The experimental ZRAM profile adds its own isolated fragment; the normal
+        # device defconfig remains unchanged.
+        if [ "${ZRAM_MULTICOMP_AUDIT:-false}" = "true" ]; then
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+                echo "ZRAM multicomp audit is restricted to the merlin ARM64 target"
+                exit 1
+            fi
+            if [ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" ]; then
+                echo "ZRAM multicomp audit requires KERNEL_SOURCE_BRANCH=experimental/zram-multicomp"
+                exit 1
+            fi
+            MULTICOMP_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_multicomp.config"
+            if [ ! -f "$MULTICOMP_CONFIG" ]; then
+                echo "Missing ZRAM multicomp fragment: $MULTICOMP_CONFIG"
+                exit 1
+            fi
+            echo "ZRAM multicomp fragment: $MULTICOMP_CONFIG"
+            ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG" "$MULTICOMP_CONFIG"
+        else
+            ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG"
+        fi
 
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
 
@@ -381,6 +402,11 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
         fi
 
+        # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
+        if [ "${ZRAM_MULTICOMP_AUDIT:-false}" = "true" ]; then
+            bash "$GITHUB_WORKSPACE/audit-zram-multicomp.sh" "$PWD" prebuild
+        fi
+
         if [ "${{ env.ENABLE_CCACHE }}" = "true" ]; then
             if [ "${{ env.USE_GCC }}" = "true" ]; then
                 make -j$(nproc --all) CC="ccache gcc" O=out ARCH=${{ env.KERNEL_ARCH }} ${{ env.EXTRA_CMDS }}
@@ -394,6 +420,12 @@ jobs:
                 make -j$(nproc --all) CC=clang O=out ARCH=${{ env.KERNEL_ARCH }} ${{ env.EXTRA_CMDS }}
             fi
         fi
+
+    - name: Audit ZRAM multicomp build output
+      if: env.ZRAM_MULTICOMP_AUDIT == 'true'
+      run: |
+        cd "$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
+        bash "$GITHUB_WORKSPACE/audit-zram-multicomp.sh" "$PWD" postbuild
 
     - name: Check a kernel output files
       run: |
@@ -483,6 +515,14 @@ jobs:
         KERNEL_NAME=$(echo "$RAW_LOCALVERSION" | sed 's/^-//')
         [ -z "$KERNEL_NAME" ] && KERNEL_NAME="CustomKernel"
         echo "KERNEL_LOCALVERSION=${KERNEL_NAME}" >> $GITHUB_ENV
+
+    - name: Upload ZRAM multicomp audit report
+      if: env.ZRAM_MULTICOMP_AUDIT == 'true'
+      uses: actions/upload-artifact@v6
+      with:
+        name: zram-multicomp-audit-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
+        path: kernel_workspace/android-kernel/out/zram-multicomp-audit/*
+        if-no-files-found: error
 
     - name: Upload AnyKernel3
       if: env.CHECK_FILE_IS_OK == 'true'
