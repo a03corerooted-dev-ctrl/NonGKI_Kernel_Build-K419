@@ -70,14 +70,25 @@ require_file "Documentation/blockdev/zram.txt"
 
 require_text "drivers/block/zram/Kconfig" "config ZRAM_MULTI_COMP"
 require_text "drivers/block/zram/Kconfig" "depends on ZRAM && 64BIT"
+require_file "arch/arm64/configs/vendor/mt6768_multicomp.config"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_MULTI_COMP=y"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_CRYPTO_ZSTD=y"
 require_text "drivers/block/zram/zram_drv.h" "ZRAM_MAX_COMPS"
 require_text "drivers/block/zram/zram_drv.h" "ZRAM_COMP_PRIORITY_BIT1"
+require_text "drivers/block/zram/zram_drv.h" "ZRAM_COMP_PRIORITY_BIT2"
 require_text "drivers/block/zram/zram_drv.c" "static ssize_t recomp_algorithm_store"
 require_text "drivers/block/zram/zram_drv.c" "static ssize_t recompress_store"
 require_text "drivers/block/zram/zram_drv.c" "static int zram_recompress"
 require_text "drivers/block/zram/zram_drv.c" "zram->comps[ZRAM_PRIMARY_COMP]"
 require_text "drivers/block/zram/zram_drv.c" "ZRAM_INCOMPRESSIBLE"
+require_text "drivers/block/zram/zram_drv.c" "default_compressor = \"lzo-rle\""
+require_text "drivers/block/zram/zram_drv.c" "zram_get_priority"
+require_text "drivers/block/zram/zram_drv.c" "zram_set_priority(zram, index, 0)"
+require_text "drivers/block/zram/zram_drv.c" "class_index_new >= class_index_old"
+require_text "drivers/block/zram/zram_drv.c" "alloced_pages > zram->limit_pages"
+require_text "drivers/block/zram/zram_drv.c" "INCOMPRESSIBLE_WRITEBACK"
 require_text "drivers/block/zram/zcomp.c" "\"zstd\""
+require_text "drivers/block/zram/zcomp.c" "#if IS_ENABLED(CONFIG_CRYPTO_ZSTD)"
 require_text "include/linux/zsmalloc.h" "zs_lookup_class_index"
 require_text "mm/zsmalloc.c" "zs_lookup_class_index("
 require_text "Documentation/ABI/testing/sysfs-block-zram" "/recomp_algorithm"
@@ -118,6 +129,7 @@ if [[ "$MODE" == "prebuild" ]]; then
         "$CONFIG_FILE" > "$AUDIT_DIR/zram-config-summary.txt" || true
 
     sha256sum \
+        "$KERNEL_ROOT/arch/arm64/configs/vendor/mt6768_multicomp.config" \
         "$KERNEL_ROOT/drivers/block/zram/Kconfig" \
         "$KERNEL_ROOT/drivers/block/zram/zram_drv.c" \
         "$KERNEL_ROOT/drivers/block/zram/zram_drv.h" \
