@@ -445,6 +445,14 @@ jobs:
            fi
        fi
 
+    - name: Upload ZRAM multicomp audit report
+      if: env.ZRAM_MULTICOMP_AUDIT == 'true'
+      uses: actions/upload-artifact@v6
+      with:
+        name: zram-multicomp-audit-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
+        path: kernel_workspace/android-kernel/out/zram-multicomp-audit/*
+        if-no-files-found: error
+
     - name: Patch xxksu Ultra KPM
       if: env.CHECK_FILE_IS_OK == 'true' && env.KPM_SUPPORT == 'true'
       run: |
@@ -515,14 +523,6 @@ jobs:
         KERNEL_NAME=$(echo "$RAW_LOCALVERSION" | sed 's/^-//')
         [ -z "$KERNEL_NAME" ] && KERNEL_NAME="CustomKernel"
         echo "KERNEL_LOCALVERSION=${KERNEL_NAME}" >> $GITHUB_ENV
-
-    - name: Upload ZRAM multicomp audit report
-      if: env.ZRAM_MULTICOMP_AUDIT == 'true'
-      uses: actions/upload-artifact@v6
-      with:
-        name: zram-multicomp-audit-${{ env.DEVICE }}-${{ env.BUILD_TIME }}
-        path: kernel_workspace/android-kernel/out/zram-multicomp-audit/*
-        if-no-files-found: error
 
     - name: Upload AnyKernel3
       if: env.CHECK_FILE_IS_OK == 'true'
