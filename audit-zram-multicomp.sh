@@ -10,8 +10,8 @@ info() {
     printf '::notice::ZRAM multicomp audit: %s\n' "$*"
 }
 
-KERNEL_ROOT="\${1:-}"
-MODE="\${2:-}"
+KERNEL_ROOT="${1:-}"
+MODE="${2:-}"
 [[ -n "$KERNEL_ROOT" && -d "$KERNEL_ROOT" ]] || fail "kernel source directory argument is missing or invalid"
 [[ "$MODE" == "prebuild" || "$MODE" == "postbuild" ]] || fail "mode must be prebuild or postbuild"
 
@@ -19,11 +19,11 @@ KERNEL_ROOT="$(cd "$KERNEL_ROOT" && pwd)"
 OUT_DIR="$KERNEL_ROOT/out"
 CONFIG_FILE="$OUT_DIR/.config"
 AUDIT_DIR="$OUT_DIR/zram-multicomp-audit"
-EXPECTED_BRANCH="\${KERNEL_SOURCE_BRANCH:-experimental/zram-multicomp}"
-EXPECTED_DEVICE="\${DEVICE:-merlin}"
-EXPECTED_ARCH="\${KERNEL_ARCH:-arm64}"
-EXPECTED_REMOTE="\${KERNEL_SOURCE:-https://github.com/a03corerooted-dev-ctrl/Hysteris_kernel_xiaomi_mt6768}"
-EXPECTED_IMAGE="\${KERNEL_IMAGE_NAME:-Image.gz-dtb}"
+EXPECTED_BRANCH="${KERNEL_SOURCE_BRANCH:-experimental/zram-multicomp}"
+EXPECTED_DEVICE="${DEVICE:-merlin}"
+EXPECTED_ARCH="${KERNEL_ARCH:-arm64}"
+EXPECTED_REMOTE="${KERNEL_SOURCE:-https://github.com/a03corerooted-dev-ctrl/Hysteris_kernel_xiaomi_mt6768}"
+EXPECTED_IMAGE="${KERNEL_IMAGE_NAME:-Image.gz-dtb}"
 
 [[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" ]] || fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp"
 [[ "$EXPECTED_DEVICE" == "merlin" ]] || fail "device is '$EXPECTED_DEVICE', this audit profile targets merlin/MT6768"
@@ -55,8 +55,8 @@ require_text() {
 
 require_config() {
     local symbol="$1"
-    grep -qx "\${symbol}=y" "$CONFIG_FILE" ||
-        fail "resolved .config does not contain \${symbol}=y"
+    grep -qx "${symbol}=y" "$CONFIG_FILE" ||
+        fail "resolved .config does not contain ${symbol}=y"
 }
 
 require_file "drivers/block/zram/Kconfig"
@@ -108,9 +108,9 @@ if [[ "$MODE" == "prebuild" ]]; then
         echo "source_commit=$ACTUAL_COMMIT"
         echo "source_tree=$ACTUAL_TREE"
         echo "source_commit_subject=$(git -C "$KERNEL_ROOT" log -1 --format=%s)"
-        echo "builder_commit=\${GITHUB_SHA:-unknown}"
-        echo "workflow_run_id=\${GITHUB_RUN_ID:-unknown}"
-        echo "workflow_attempt=\${GITHUB_RUN_ATTEMPT:-unknown}"
+        echo "builder_commit=${GITHUB_SHA:-unknown}"
+        echo "workflow_run_id=${GITHUB_RUN_ID:-unknown}"
+        echo "workflow_attempt=${GITHUB_RUN_ATTEMPT:-unknown}"
         echo "utc_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$AUDIT_DIR/source-metadata.txt"
 
