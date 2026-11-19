@@ -424,8 +424,13 @@ jobs:
         if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
             grep -qx 'CONFIG_SCHED_BORE=y' out/.config || { echo "CONFIG_SCHED_BORE is not enabled after olddefconfig"; exit 1; }
             grep -q 'calc_delta_bore_fair' kernel/sched/fair.c || { echo "Native BORE CFS vruntime code is missing"; exit 1; }
-            grep -q 'ANDROID_KABI_USE(1, u64 burst_time)' include/linux/sched.h || { echo "BORE sched_entity KABI slots are missing"; exit 1; }
+            grep -q 'p->policy == SCHED_IDLE' kernel/sched/fair.c || { echo "BORE must preserve SCHED_IDLE's special load weight"; exit 1; }
+            grep -q 'ANDROID_KABI_USE(1, u64 burst_time)' include/linux/sched.h || { echo "BORE KABI slot 1 is missing"; exit 1; }
+            grep -q 'ANDROID_KABI_USE(2, struct {' include/linux/sched.h || { echo "BORE KABI slot 2 is missing"; exit 1; }
+            grep -q 'ANDROID_KABI_USE(3, u32 child_burst_cnt)' include/linux/sched.h || { echo "BORE KABI slot 3 is missing"; exit 1; }
+            grep -q 'ANDROID_KABI_USE(4, u64 child_burst_last_cached)' include/linux/sched.h || { echo "BORE KABI slot 4 is missing"; exit 1; }
             grep -q 'sched_post_fork_bore' kernel/sched/core.c || { echo "BORE fork inheritance hook is missing"; exit 1; }
+            grep -q 'write_lock_irq(&tasklist_lock)' kernel/sched/core.c || { echo "BORE fork cache updates must be serialized"; exit 1; }
             grep -q 'sched_burst_penalty_scale' kernel/sysctl.c || { echo "BORE sysctl controls are missing"; exit 1; }
         fi
 
