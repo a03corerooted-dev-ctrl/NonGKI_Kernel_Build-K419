@@ -25,8 +25,8 @@ EXPECTED_ARCH="${KERNEL_ARCH:-arm64}"
 EXPECTED_REMOTE="${KERNEL_SOURCE:-https://github.com/a03corerooted-dev-ctrl/Hysteris_kernel_xiaomi_mt6768}"
 EXPECTED_IMAGE="${KERNEL_IMAGE_NAME:-Image.gz-dtb}"
 
-[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" || "$EXPECTED_BRANCH" == "experimental/psi-backport" ]] ||
-    fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp or its PSI integration branch"
+[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" || "$EXPECTED_BRANCH" == "experimental/psi-backport" || "$EXPECTED_BRANCH" == "experimental/zram-auto-recompress" ]] ||
+    fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp, experimental/psi-backport, or experimental/zram-auto-recompress"
 [[ "$EXPECTED_DEVICE" == "merlin" ]] || fail "device is '$EXPECTED_DEVICE', this audit profile targets merlin/MT6768"
 [[ "$EXPECTED_ARCH" == "arm64" ]] || fail "architecture is '$EXPECTED_ARCH', expected arm64"
 
@@ -60,6 +60,13 @@ require_config() {
         fail "resolved .config does not contain ${symbol}=y"
 }
 
+require_config_value() {
+    local symbol="$1"
+    local expected="$2"
+    grep -qx "${symbol}=${expected}" "$CONFIG_FILE" ||
+        fail "resolved .config does not contain ${symbol}=${expected}"
+}
+
 require_file "drivers/block/zram/Kconfig"
 require_file "drivers/block/zram/zram_drv.c"
 require_file "drivers/block/zram/zram_drv.h"
@@ -71,15 +78,29 @@ require_file "Documentation/blockdev/zram.txt"
 
 require_text "drivers/block/zram/Kconfig" "config ZRAM_MULTI_COMP"
 require_text "drivers/block/zram/Kconfig" "depends on ZRAM && 64BIT"
+require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP"
+require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_INTERVAL"
+require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_PAGES"
+require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_MAX_PAGES"
 require_file "arch/arm64/configs/vendor/mt6768_multicomp.config"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_MULTI_COMP=y"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_CRYPTO_ZSTD=y"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP=y"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_INTERVAL=120"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_PAGES=16384"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_MAX_PAGES=256"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "# CONFIG_ZRAM_WRITEBACK is not set"
 require_text "drivers/block/zram/zram_drv.h" "ZRAM_MAX_COMPS"
 require_text "drivers/block/zram/zram_drv.h" "ZRAM_COMP_PRIORITY_BIT1"
 require_text "drivers/block/zram/zram_drv.h" "ZRAM_COMP_PRIORITY_BIT2"
 require_text "drivers/block/zram/zram_drv.c" "static ssize_t recomp_algorithm_store"
 require_text "drivers/block/zram/zram_drv.c" "static ssize_t recompress_store"
 require_text "drivers/block/zram/zram_drv.c" "static int zram_recompress"
+require_text "drivers/block/zram/zram_drv.c" "static void zram_auto_recompress_work"
+require_text "drivers/block/zram/zram_drv.c" "ZRAM_RECOMP_CANDIDATE"
+require_text "drivers/block/zram/zram_drv.c" "cancel_delayed_work_sync(&zram->recomp_work);"
+require_text "drivers/block/zram/zram_drv.h" "struct delayed_work recomp_work"
+require_text "drivers/block/zram/zram_drv.h" "auto_recomp_scans"
 require_text "drivers/block/zram/zram_drv.c" "zram->comps[ZRAM_PRIMARY_COMP]"
 require_text "drivers/block/zram/zram_drv.c" "ZRAM_INCOMPRESSIBLE"
 require_text "drivers/block/zram/zram_drv.c" "default_compressor = \"lzo-rle\""
@@ -94,7 +115,9 @@ require_text "include/linux/zsmalloc.h" "zs_lookup_class_index"
 require_text "mm/zsmalloc.c" "zs_lookup_class_index("
 require_text "Documentation/ABI/testing/sysfs-block-zram" "/recomp_algorithm"
 require_text "Documentation/ABI/testing/sysfs-block-zram" "/recompress"
+require_text "Documentation/ABI/testing/sysfs-block-zram" "/auto_recomp_stat"
 require_text "Documentation/blockdev/zram.txt" "CONFIG_ZRAM_MULTI_COMP"
+require_text "Documentation/blockdev/zram.txt" "Automatic cold-page recompression"
 
 if [[ "$MODE" == "prebuild" ]]; then
     [[ -s "$CONFIG_FILE" ]] || fail "resolved kernel config is missing: $CONFIG_FILE"
@@ -105,6 +128,12 @@ if [[ "$MODE" == "prebuild" ]]; then
     require_config "CONFIG_ZSMALLOC"
     require_config "CONFIG_ZRAM_MULTI_COMP"
     require_config "CONFIG_CRYPTO_ZSTD"
+    require_config "CONFIG_ZRAM_AUTO_RECOMP"
+    require_config_value "CONFIG_ZRAM_AUTO_RECOMP_INTERVAL" "120"
+    require_config_value "CONFIG_ZRAM_AUTO_RECOMP_PAGES" "16384"
+    require_config_value "CONFIG_ZRAM_AUTO_RECOMP_MAX_PAGES" "256"
+    grep -qx '# CONFIG_ZRAM_WRITEBACK is not set' "$CONFIG_FILE" ||
+        fail "resolved .config must keep CONFIG_ZRAM_WRITEBACK disabled"
 
     rm -rf "$AUDIT_DIR"
     mkdir -p "$AUDIT_DIR"
@@ -126,7 +155,7 @@ if [[ "$MODE" == "prebuild" ]]; then
         echo "utc_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$AUDIT_DIR/source-metadata.txt"
 
-    grep -E '^(CONFIG_(ARM64|64BIT|ZRAM|ZRAM_MULTI_COMP|CRYPTO_ZSTD|CRYPTO_LZO|ZSMALLOC|ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING)=|# CONFIG_(ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING) is not set)' \
+    grep -E '^(CONFIG_(ARM64|64BIT|ZRAM|ZRAM_MULTI_COMP|CRYPTO_ZSTD|CRYPTO_LZO|ZSMALLOC|ZRAM_AUTO_RECOMP|ZRAM_AUTO_RECOMP_INTERVAL|ZRAM_AUTO_RECOMP_PAGES|ZRAM_AUTO_RECOMP_MAX_PAGES|ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING)=|# CONFIG_(ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING) is not set)' \
         "$CONFIG_FILE" > "$AUDIT_DIR/zram-config-summary.txt" || true
 
     sha256sum \
@@ -144,7 +173,8 @@ if [[ "$MODE" == "prebuild" ]]; then
     {
         echo "PASS: approved source branch and remote retain the ZRAM multicomp implementation"
         echo "PASS: multi-compressor Kconfig and source interfaces are present"
-        echo "PASS: resolved ARM64 config enables ZRAM, zsmalloc, multicomp and ZSTD"
+        echo "PASS: resolved ARM64 config enables ZRAM, zsmalloc, multicomp, ZSTD and bounded auto recompression"
+        echo "PASS: resolved config disables ZRAM writeback"
         echo "PASS: sysfs ABI and user documentation are present"
     } | tee "$AUDIT_DIR/prebuild-checks.txt"
 
