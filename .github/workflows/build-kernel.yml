@@ -230,6 +230,9 @@ jobs:
       if: env.BORE_SCHEDULER == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        grep -qx 'VERSION = 4' Makefile
+        grep -qx 'PATCHLEVEL = 19' Makefile
+        grep -qx 'SUBLEVEL = 325' Makefile
         PATCH="patches/bore/0001-linux-4.19-bore5.1.0r2.patch"
         test -s "$PATCH"
         git apply --check "$PATCH"
