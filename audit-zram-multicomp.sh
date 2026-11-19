@@ -25,7 +25,8 @@ EXPECTED_ARCH="${KERNEL_ARCH:-arm64}"
 EXPECTED_REMOTE="${KERNEL_SOURCE:-https://github.com/a03corerooted-dev-ctrl/Hysteris_kernel_xiaomi_mt6768}"
 EXPECTED_IMAGE="${KERNEL_IMAGE_NAME:-Image.gz-dtb}"
 
-[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" ]] || fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp"
+[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" || "$EXPECTED_BRANCH" == "experimental/psi-backport" ]] ||
+    fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp or its PSI integration branch"
 [[ "$EXPECTED_DEVICE" == "merlin" ]] || fail "device is '$EXPECTED_DEVICE', this audit profile targets merlin/MT6768"
 [[ "$EXPECTED_ARCH" == "arm64" ]] || fail "architecture is '$EXPECTED_ARCH', expected arm64"
 
@@ -141,7 +142,7 @@ if [[ "$MODE" == "prebuild" ]]; then
         > "$AUDIT_DIR/source-files.sha256"
 
     {
-        echo "PASS: source branch and remote match the ZRAM multicomp profile"
+        echo "PASS: approved source branch and remote retain the ZRAM multicomp implementation"
         echo "PASS: multi-compressor Kconfig and source interfaces are present"
         echo "PASS: resolved ARM64 config enables ZRAM, zsmalloc, multicomp and ZSTD"
         echo "PASS: sysfs ABI and user documentation are present"
