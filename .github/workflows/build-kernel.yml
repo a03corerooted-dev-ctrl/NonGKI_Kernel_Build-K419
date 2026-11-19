@@ -444,7 +444,7 @@ jobs:
             grep -q 'READ_ONCE(p->state) != TASK_NEW' kernel/sched/core.c || { echo "BORE inheritance must ignore concurrent TASK_NEW children"; exit 1; }
             grep -q 'sched_burst_penalty_scale' kernel/sysctl.c || { echo "BORE sysctl controls are missing"; exit 1; }
             grep -q 'sched_post_fork(p);' kernel/fork.c || { echo "BORE post-fork hook is missing from copy_process"; exit 1; }
-            awk '/list_add_tail\(&p->sibling, &p->real_parent->children\);/ { linked=NR } /write_unlock_irq\(&tasklist_lock\);/ { unlocked=NR } /sched_post_fork\(p\);/ { called=NR } END { exit !(linked && unlocked && called && linked < unlocked && unlocked < called) }' kernel/fork.c || { echo "BORE post-fork inheritance must run after child linkage and tasklist unlock"; exit 1; }
+            awk '/list_add_tail\(&p->sibling, &p->real_parent->children\);/ { linked=NR } /write_unlock_irq\(&tasklist_lock\);/ && linked && !unlocked { unlocked=NR } /sched_post_fork\(p\);/ { called=NR; if (linked && unlocked && linked < unlocked && unlocked < called) ok=1 } END { exit !ok }' kernel/fork.c || { echo "BORE post-fork inheritance must run after child linkage and tasklist unlock"; exit 1; }
         fi
 
 
