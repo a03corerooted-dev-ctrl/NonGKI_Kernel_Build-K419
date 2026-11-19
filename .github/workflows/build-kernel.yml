@@ -226,20 +226,6 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --recursive ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
 
-    - name: Apply BORE scheduler for Linux 4.19
-      if: env.BORE_SCHEDULER == 'true'
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        grep -qx 'VERSION = 4' Makefile
-        grep -qx 'PATCHLEVEL = 19' Makefile
-        grep -qx 'SUBLEVEL = 325' Makefile
-        PATCH="patches/bore/0001-linux-4.19-bore5.1.0r2.patch"
-        test -s "$PATCH"
-        git apply --check "$PATCH"
-        git apply "$PATCH"
-        grep -q 'sched_bore' kernel/sysctl.c
-        grep -q 'Burst-Oriented Response Enhancer' init/Kconfig
-
     - name: Download source boot image
       if: env.BUILD_BOOT_IMG == 'true'
       run: |
@@ -289,8 +275,8 @@ jobs:
                 exit 1
             fi
             # The auto-recompression branch is a descendant of PSI + the validated ZRAM multicomp base.
-            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" && "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]]; then
-                echo "ZRAM audit requires the multicomp baseline, PSI integration, auto-recompression, or BORE scheduler branch"
+            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" ]]; then
+                echo "ZRAM audit requires the multicomp baseline, PSI integration, or auto-recompression branch"
                 exit 1
             fi
             MULTICOMP_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_multicomp.config"
@@ -302,19 +288,6 @@ jobs:
             ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG" "$MULTICOMP_CONFIG"
         else
             ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG"
-        fi
-
-        if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
-            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ] || [ "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]; then
-                echo "BORE scheduler profile is restricted to experimental/bore-scheduler on merlin ARM64"
-                exit 1
-            fi
-            BORE_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_bore.config"
-            if [ ! -f "$BORE_CONFIG" ]; then
-                echo "Missing BORE scheduler fragment: $BORE_CONFIG"
-                exit 1
-            fi
-            ./scripts/kconfig/merge_config.sh -m -O out out/.config "$BORE_CONFIG"
         fi
 
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
@@ -435,11 +408,6 @@ jobs:
             bash "$GITHUB_WORKSPACE/audit-zram-multicomp.sh" "$PWD" prebuild
         fi
 
-        if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
-            grep -qx 'CONFIG_SCHED_BORE=y' out/.config || { echo "CONFIG_SCHED_BORE is not enabled after olddefconfig"; exit 1; }
-            grep -q 'sched_bore' kernel/sysctl.c || { echo "BORE sysctl integration is missing"; exit 1; }
-        fi
-
         if [ "${{ env.ENABLE_CCACHE }}" = "true" ]; then
             if [ "${{ env.USE_GCC }}" = "true" ]; then
                 make -j$(nproc --all) CC="ccache gcc" O=out ARCH=${{ env.KERNEL_ARCH }} ${{ env.EXTRA_CMDS }}
@@ -459,13 +427,6 @@ jobs:
       run: |
         cd "$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
         bash "$GITHUB_WORKSPACE/audit-zram-multicomp.sh" "$PWD" postbuild
-
-    - name: Audit BORE scheduler build objects
-      if: env.BORE_SCHEDULER == 'true'
-      run: |
-        cd "$GITHUB_WORKSPACE/kernel_workspace/android-kernel"
-        test -s out/kernel/sched/fair.o
-        test -s out/kernel/sched/core.o
 
     - name: Check a kernel output files
       run: |
