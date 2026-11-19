@@ -79,6 +79,7 @@ require_file "Documentation/blockdev/zram.txt"
 require_text "drivers/block/zram/Kconfig" "config ZRAM_MULTI_COMP"
 require_text "drivers/block/zram/Kconfig" "depends on ZRAM && 64BIT"
 require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP"
+require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_ALGORITHM"
 require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_INTERVAL"
 require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_PAGES"
 require_text "drivers/block/zram/Kconfig" "config ZRAM_AUTO_RECOMP_MAX_PAGES"
@@ -86,6 +87,7 @@ require_file "arch/arm64/configs/vendor/mt6768_multicomp.config"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_MULTI_COMP=y"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_CRYPTO_ZSTD=y"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP=y"
+require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_ALGORITHM=\"zstd\""
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_INTERVAL=120"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_PAGES=16384"
 require_text "arch/arm64/configs/vendor/mt6768_multicomp.config" "CONFIG_ZRAM_AUTO_RECOMP_MAX_PAGES=256"
@@ -97,6 +99,8 @@ require_text "drivers/block/zram/zram_drv.c" "static ssize_t recomp_algorithm_st
 require_text "drivers/block/zram/zram_drv.c" "static ssize_t recompress_store"
 require_text "drivers/block/zram/zram_drv.c" "static int zram_recompress"
 require_text "drivers/block/zram/zram_drv.c" "static void zram_auto_recompress_work"
+require_text "drivers/block/zram/zram_drv.c" "zcomp_available_algorithm(CONFIG_ZRAM_AUTO_RECOMP_ALGORITHM)"
+require_text "drivers/block/zram/zram_drv.c" "zram->comp_algs[ZRAM_SECONDARY_COMP]"
 require_text "drivers/block/zram/zram_drv.c" "ZRAM_RECOMP_CANDIDATE"
 require_text "drivers/block/zram/zram_drv.c" "cancel_delayed_work_sync(&zram->recomp_work);"
 require_text "drivers/block/zram/zram_drv.h" "struct delayed_work recomp_work"
@@ -129,6 +133,7 @@ if [[ "$MODE" == "prebuild" ]]; then
     require_config "CONFIG_ZRAM_MULTI_COMP"
     require_config "CONFIG_CRYPTO_ZSTD"
     require_config "CONFIG_ZRAM_AUTO_RECOMP"
+    require_config_value "CONFIG_ZRAM_AUTO_RECOMP_ALGORITHM" '"zstd"'
     require_config_value "CONFIG_ZRAM_AUTO_RECOMP_INTERVAL" "120"
     require_config_value "CONFIG_ZRAM_AUTO_RECOMP_PAGES" "16384"
     require_config_value "CONFIG_ZRAM_AUTO_RECOMP_MAX_PAGES" "256"
@@ -155,7 +160,7 @@ if [[ "$MODE" == "prebuild" ]]; then
         echo "utc_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$AUDIT_DIR/source-metadata.txt"
 
-    grep -E '^(CONFIG_(ARM64|64BIT|ZRAM|ZRAM_MULTI_COMP|CRYPTO_ZSTD|CRYPTO_LZO|ZSMALLOC|ZRAM_AUTO_RECOMP|ZRAM_AUTO_RECOMP_INTERVAL|ZRAM_AUTO_RECOMP_PAGES|ZRAM_AUTO_RECOMP_MAX_PAGES|ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING)=|# CONFIG_(ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING) is not set)' \
+    grep -E '^(CONFIG_(ARM64|64BIT|ZRAM|ZRAM_MULTI_COMP|CRYPTO_ZSTD|CRYPTO_LZO|ZSMALLOC|ZRAM_AUTO_RECOMP|ZRAM_AUTO_RECOMP_ALGORITHM|ZRAM_AUTO_RECOMP_INTERVAL|ZRAM_AUTO_RECOMP_PAGES|ZRAM_AUTO_RECOMP_MAX_PAGES|ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING)=|# CONFIG_(ZRAM_WRITEBACK|ZRAM_MEMORY_TRACKING) is not set)' \
         "$CONFIG_FILE" > "$AUDIT_DIR/zram-config-summary.txt" || true
 
     sha256sum \
@@ -174,6 +179,7 @@ if [[ "$MODE" == "prebuild" ]]; then
         echo "PASS: approved source branch and remote retain the ZRAM multicomp implementation"
         echo "PASS: multi-compressor Kconfig and source interfaces are present"
         echo "PASS: resolved ARM64 config enables ZRAM, zsmalloc, multicomp, ZSTD and bounded auto recompression"
+        echo "PASS: zstd is configured as the secondary cold-page compressor"
         echo "PASS: resolved config disables ZRAM writeback"
         echo "PASS: sysfs ABI and user documentation are present"
     } | tee "$AUDIT_DIR/prebuild-checks.txt"
