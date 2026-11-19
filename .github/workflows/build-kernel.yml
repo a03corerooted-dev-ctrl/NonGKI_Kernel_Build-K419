@@ -274,9 +274,9 @@ jobs:
                 echo "ZRAM multicomp audit is restricted to the merlin ARM64 target"
                 exit 1
             fi
-            # The PSI integration branch is a direct descendant of the validated ZRAM multicomp branch.
-            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" ]]; then
-                echo "ZRAM multicomp audit requires experimental/zram-multicomp or its PSI integration branch"
+            # The auto-recompression branch is a descendant of PSI + the validated ZRAM multicomp base.
+            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" ]]; then
+                echo "ZRAM audit requires the multicomp baseline, PSI integration, or auto-recompression branch"
                 exit 1
             fi
             MULTICOMP_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_multicomp.config"
