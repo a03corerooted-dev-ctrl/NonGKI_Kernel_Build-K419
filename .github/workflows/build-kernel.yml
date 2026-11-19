@@ -286,8 +286,8 @@ jobs:
                 exit 1
             fi
             # The auto-recompression branch is a descendant of PSI + the validated ZRAM multicomp base.
-            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" ]]; then
-                echo "ZRAM audit requires the multicomp baseline, PSI integration, or auto-recompression branch"
+            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" && "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]]; then
+                echo "ZRAM audit requires the multicomp baseline, PSI integration, auto-recompression, or BORE scheduler branch"
                 exit 1
             fi
             MULTICOMP_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_multicomp.config"
