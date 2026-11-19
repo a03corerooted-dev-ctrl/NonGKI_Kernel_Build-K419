@@ -439,7 +439,11 @@ jobs:
             grep -q 'ANDROID_KABI_USE(4, u64 child_burst_last_cached)' include/linux/sched.h || { echo "BORE KABI slot 4 is missing"; exit 1; }
             grep -q 'sched_post_fork_bore' kernel/sched/core.c || { echo "BORE fork inheritance hook is missing"; exit 1; }
             grep -q 'write_lock_irq(&tasklist_lock)' kernel/sched/core.c || { echo "BORE fork cache updates must be serialized"; exit 1; }
+            grep -q 'child == exclude' kernel/sched/core.c || { echo "BORE direct inheritance must exclude the newly forked task"; exit 1; }
+            grep -q 'descendant == exclude' kernel/sched/core.c || { echo "BORE atavistic inheritance must exclude the newly forked task"; exit 1; }
             grep -q 'sched_burst_penalty_scale' kernel/sysctl.c || { echo "BORE sysctl controls are missing"; exit 1; }
+            grep -q 'sched_post_fork(p);' kernel/fork.c || { echo "BORE post-fork hook is missing from copy_process"; exit 1; }
+            awk '/list_add_tail\(&p->sibling, &p->real_parent->children\);/ { linked=NR } /write_unlock_irq\(&tasklist_lock\);/ { unlocked=NR } /sched_post_fork\(p\);/ { called=NR } END { exit !(linked && unlocked && called && linked < unlocked && unlocked < called) }' kernel/fork.c || { echo "BORE post-fork inheritance must run after child linkage and tasklist unlock"; exit 1; }
         fi
 
 
