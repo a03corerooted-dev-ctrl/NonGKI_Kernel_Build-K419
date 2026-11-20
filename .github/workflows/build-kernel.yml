@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - bore-scheduler
+      - test/spf-419-enabled
+      - test/spf-419-disabled
   workflow_dispatch:
     inputs:
       select_device:
@@ -314,6 +316,16 @@ jobs:
 
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
 
+        if [ "${SPF_SPECULATIVE_PAGE_FAULT:-false}" = "true" ]; then
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+                echo "SPF validation is restricted to merlin ARM64"
+                exit 1
+            fi
+            ./scripts/config --file "$CONFIG_FILE" --enable SPECULATIVE_PAGE_FAULT
+        else
+            ./scripts/config --file "$CONFIG_FILE" --disable SPECULATIVE_PAGE_FAULT
+        fi
+
         if [ "${{ env.ENABLE_KERNELSU }}" = true ]; then
             if [ "${{ env.KSU_HOOKS_PATCH }}" = true ]; then
                 git apply $GITHUB_WORKSPACE/patches/KSU_HOOKS_PATCH.patch
@@ -423,6 +435,12 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=gcc ${{ env.EXTRA_CMDS }} olddefconfig
         else
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
+        fi
+
+        if [ "${SPF_SPECULATIVE_PAGE_FAULT:-false}" = "true" ]; then
+            grep -qx 'CONFIG_SPECULATIVE_PAGE_FAULT=y' out/.config || { echo "SPF enabled config did not survive olddefconfig"; exit 1; }
+        else
+            grep -qx '# CONFIG_SPECULATIVE_PAGE_FAULT is not set' out/.config || { echo "SPF disabled config did not survive olddefconfig"; exit 1; }
         fi
 
         # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
