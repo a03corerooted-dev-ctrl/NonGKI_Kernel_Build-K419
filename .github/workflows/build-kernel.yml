@@ -328,6 +328,28 @@ jobs:
             ./scripts/kconfig/merge_config.sh -m -O out out/.config "$BORE_CONFIG"
         fi
 
+        if [ "${DAMON_RECLAIM:-false}" = "true" ] || [ "${DAMON_LRU_SORT:-false}" = "true" ]; then
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+                echo "DAMON reclaim experiments are restricted to merlin ARM64"
+                exit 1
+            fi
+            DAMON_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_damon.config"
+            if [ ! -s "$DAMON_CONFIG" ]; then
+                echo "Missing DAMON profile fragment: $DAMON_CONFIG"
+                exit 1
+            fi
+            if [ "${DAMON_RECLAIM:-false}" = "true" ] && ! grep -qx 'CONFIG_DAMON_RECLAIM=y' "$DAMON_CONFIG"; then
+                echo "DAMON_RECLAIM was requested but the profile does not enable it"
+                exit 1
+            fi
+            if [ "${DAMON_LRU_SORT:-false}" = "true" ] && ! grep -qx 'CONFIG_DAMON_LRU_SORT=y' "$DAMON_CONFIG"; then
+                echo "DAMON_LRU_SORT was requested but the profile does not enable it"
+                exit 1
+            fi
+            echo "DAMON profile fragment: $DAMON_CONFIG"
+            ./scripts/kconfig/merge_config.sh -m -O out out/.config "$DAMON_CONFIG"
+        fi
+
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
 
         # SPF is a Builder-controlled feature. Keep the source branch independent
@@ -504,6 +526,21 @@ jobs:
                 exit 1
             fi
             echo "PASS: resolved config retains CONFIG_SCHED_BORE=y"
+        fi
+
+        if [ "${DAMON_RECLAIM:-false}" = "true" ] || [ "${DAMON_LRU_SORT:-false}" = "true" ]; then
+            grep -qx 'CONFIG_DAMON=y' out/.config || { echo "DAMON core was not enabled after olddefconfig"; exit 1; }
+            grep -qx 'CONFIG_DAMON_PADDR=y' out/.config || { echo "DAMON physical backend was not enabled (check MMU/MIGRATION dependencies)"; exit 1; }
+            grep -qx 'CONFIG_IDLE_PAGE_TRACKING=y' out/.config || { echo "DAMON page-idle tracking dependency was not enabled"; exit 1; }
+            if [ "${DAMON_RECLAIM:-false}" = "true" ]; then
+                grep -qx 'CONFIG_DAMON_RECLAIM=y' out/.config || { echo "DAMON_RECLAIM was dropped by Kconfig"; exit 1; }
+            fi
+            if [ "${DAMON_LRU_SORT:-false}" = "true" ]; then
+                grep -qx 'CONFIG_DAMON_LRU_SORT=y' out/.config || { echo "DAMON_LRU_SORT was dropped by Kconfig"; exit 1; }
+            fi
+            grep -q 'damon_reclaim_pages_from_list' mm/vmscan.c || { echo "Node-safe DAMON pageout helper is missing"; exit 1; }
+            grep -q 'deactivate_page(page)' mm/damon/paddr.c || { echo "Hysteris generic LRU deactivation implementation is missing"; exit 1; }
+            echo "PASS: DAMON core, paddr backend and requested policies are enabled"
         fi
 
         # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
