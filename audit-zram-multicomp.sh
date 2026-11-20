@@ -25,8 +25,8 @@ EXPECTED_ARCH="${KERNEL_ARCH:-arm64}"
 EXPECTED_REMOTE="${KERNEL_SOURCE:-https://github.com/a03corerooted-dev-ctrl/Hysteris_kernel_xiaomi_mt6768}"
 EXPECTED_IMAGE="${KERNEL_IMAGE_NAME:-Image.gz-dtb}"
 
-[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" || "$EXPECTED_BRANCH" == "experimental/psi-backport" || "$EXPECTED_BRANCH" == "experimental/zram-auto-recompress" || "$EXPECTED_BRANCH" == "experimental/bore-scheduler" ]] ||
-    fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected experimental/zram-multicomp, experimental/psi-backport, experimental/zram-auto-recompress, or experimental/bore-scheduler"
+[[ "$EXPECTED_BRANCH" == "experimental/zram-multicomp" || "$EXPECTED_BRANCH" == "experimental/psi-backport" || "$EXPECTED_BRANCH" == "experimental/zram-auto-recompress" || "$EXPECTED_BRANCH" == "experimental/bore-scheduler" || "$EXPECTED_BRANCH" == "test/spf-419-ci-enabled" || "$EXPECTED_BRANCH" == "test/spf-419-ci-disabled" ]] ||
+    fail "KERNEL_SOURCE_BRANCH is '$EXPECTED_BRANCH', expected an approved ZRAM baseline, BORE, or SPF test branch"
 [[ "$EXPECTED_DEVICE" == "merlin" ]] || fail "device is '$EXPECTED_DEVICE', this audit profile targets merlin/MT6768"
 [[ "$EXPECTED_ARCH" == "arm64" ]] || fail "architecture is '$EXPECTED_ARCH', expected arm64"
 
