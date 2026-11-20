@@ -5,6 +5,7 @@ on:
       - bore-scheduler
       - test/spf-419-enabled
       - test/spf-419-disabled
+      - test/mglru-enabled
   workflow_dispatch:
     inputs:
       select_device:
