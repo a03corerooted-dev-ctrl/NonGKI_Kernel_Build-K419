@@ -426,6 +426,15 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
         fi
 
+        # Verify feature fragments survived Kconfig dependency resolution.
+        if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
+            if ! grep -qx 'CONFIG_SCHED_BORE=y' out/.config; then
+                echo "Resolved kernel config does not enable CONFIG_SCHED_BORE=y"
+                exit 1
+            fi
+            echo "PASS: resolved config retains CONFIG_SCHED_BORE=y"
+        fi
+
         # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
         if [ "${ZRAM_MULTICOMP_AUDIT:-false}" = "true" ]; then
             bash "$GITHUB_WORKSPACE/audit-zram-multicomp.sh" "$PWD" prebuild
