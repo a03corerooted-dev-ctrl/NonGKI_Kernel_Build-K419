@@ -485,6 +485,25 @@ jobs:
             esac
         fi
 
+        # MGLRU is built only on the isolated experimental builder branch.
+        # Keep the main switch disabled by default and fail if olddefconfig
+        # drops any of the requested diagnostics or MGLRU support.
+        if [ "$GITHUB_REF_NAME" = "test/mglru-enabled" ]; then
+            grep -qx 'CONFIG_LRU_GEN=y' out/.config || {
+                echo "MGLRU was requested but CONFIG_LRU_GEN is not enabled"; exit 1;
+            }
+            grep -qx '# CONFIG_LRU_GEN_ENABLED is not set' out/.config || {
+                echo "MGLRU must remain disabled by default"; exit 1;
+            }
+            grep -qx 'CONFIG_DEBUG_FS=y' out/.config || {
+                echo "MGLRU debugfs interface is not enabled"; exit 1;
+            }
+            grep -qx 'CONFIG_LRU_GEN_STATS=y' out/.config || {
+                echo "MGLRU historical statistics are not enabled"; exit 1;
+            }
+            echo "PASS: resolved config retains MGLRU, runtime-off default, debugfs and stats"
+        fi
+
         # Verify feature fragments survived Kconfig dependency resolution.
         if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
             if ! grep -qx 'CONFIG_SCHED_BORE=y' out/.config; then
