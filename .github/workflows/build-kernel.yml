@@ -282,11 +282,8 @@ jobs:
                 echo "ZRAM multicomp audit is restricted to the merlin ARM64 target"
                 exit 1
             fi
-            # The auto-recompression branch is a descendant of PSI + the validated ZRAM multicomp base.
-            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" && "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]]; then
-                echo "ZRAM audit requires the multicomp baseline, PSI integration, auto-recompression, or BORE scheduler branch"
-                exit 1
-            fi
+            # Do not gate inherited feature branches by their names. The source-level
+            # audit below verifies the actual ZRAM multicomp/auto-recompress implementation.
             MULTICOMP_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_multicomp.config"
             if [ ! -f "$MULTICOMP_CONFIG" ]; then
                 echo "Missing ZRAM multicomp fragment: $MULTICOMP_CONFIG"
@@ -299,13 +296,17 @@ jobs:
         fi
 
         if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
-            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ] || [ "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]; then
-                echo "BORE scheduler integration is restricted to experimental/bore-scheduler on merlin ARM64"
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+                echo "BORE scheduler integration is restricted to merlin ARM64"
                 exit 1
             fi
             BORE_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_bore.config"
-            if [ ! -f "$BORE_CONFIG" ]; then
-                echo "Missing native BORE config fragment: $BORE_CONFIG"
+            if [ ! -s "$BORE_CONFIG" ]; then
+                echo "Missing or empty native BORE config fragment: $BORE_CONFIG"
+                exit 1
+            fi
+            if ! grep -qx 'CONFIG_SCHED_BORE=y' "$BORE_CONFIG"; then
+                echo "BORE fragment does not enable CONFIG_SCHED_BORE=y: $BORE_CONFIG"
                 exit 1
             fi
             # Merge on top of the already resolved base/device/ZRAM fragments.
