@@ -5,6 +5,7 @@ on:
       - bore-scheduler
       - test/spf-419-enabled
       - test/spf-419-disabled
+      - test/combo-lru-reclaim
   workflow_dispatch:
     inputs:
       select_device:
@@ -235,6 +236,18 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --recursive ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        cd android-kernel
+        ACTUAL_KERNEL_SOURCE_SHA="$(git rev-parse HEAD)"
+        echo "Kernel source branch: ${KERNEL_SOURCE_BRANCH}"
+        echo "Kernel source commit: ${ACTUAL_KERNEL_SOURCE_SHA}"
+        git log -1 --format='Kernel source subject: %s'
+        if [ -n "${KERNEL_SOURCE_EXPECTED_SHA:-}" ] && [ "$ACTUAL_KERNEL_SOURCE_SHA" != "$KERNEL_SOURCE_EXPECTED_SHA" ]; then
+            echo "Kernel source SHA mismatch: expected $KERNEL_SOURCE_EXPECTED_SHA, got $ACTUAL_KERNEL_SOURCE_SHA"
+            exit 1
+        fi
+        if [ -n "${KERNEL_SOURCE_EXPECTED_SHA:-}" ]; then
+            echo "PASS: kernel source SHA matches the experimental reclaim target"
+        fi
 
     - name: Download source boot image
       if: env.BUILD_BOOT_IMG == 'true'
