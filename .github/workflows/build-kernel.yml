@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - bore-scheduler
+      - test/spf-419-enabled
+      - test/spf-419-disabled
   workflow_dispatch:
     inputs:
       select_device:
