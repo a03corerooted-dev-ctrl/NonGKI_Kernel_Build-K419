@@ -236,6 +236,10 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --recursive ${{ env.KERNEL_SOURCE }} -b ${{ env.KERNEL_SOURCE_BRANCH }} android-kernel --depth=1
+        cd android-kernel
+        echo "Kernel source branch: ${KERNEL_SOURCE_BRANCH}"
+        echo "Kernel source commit: $(git rev-parse HEAD)"
+        git log -1 --format='Kernel source subject: %s'
 
     - name: Download source boot image
       if: env.BUILD_BOOT_IMG == 'true'
