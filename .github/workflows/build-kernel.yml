@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - bore-scheduler
+      - test/spf-419-enabled
+      - test/spf-419-disabled
   workflow_dispatch:
     inputs:
       select_device:
@@ -283,7 +285,7 @@ jobs:
                 exit 1
             fi
             # The auto-recompression branch is a descendant of PSI + the validated ZRAM multicomp base.
-            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" && "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]]; then
+            if [[ "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-multicomp" && "${KERNEL_SOURCE_BRANCH}" != "experimental/psi-backport" && "${KERNEL_SOURCE_BRANCH}" != "experimental/zram-auto-recompress" && "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" && "${KERNEL_SOURCE_BRANCH}" != "test/spf-419-ci-enabled" && "${KERNEL_SOURCE_BRANCH}" != "test/spf-419-ci-disabled" ]]; then
                 echo "ZRAM audit requires the multicomp baseline, PSI integration, auto-recompression, or BORE scheduler branch"
                 exit 1
             fi
@@ -299,8 +301,8 @@ jobs:
         fi
 
         if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
-            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ] || [ "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ]; then
-                echo "BORE scheduler integration is restricted to experimental/bore-scheduler on merlin ARM64"
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ] || { [ "${KERNEL_SOURCE_BRANCH}" != "experimental/bore-scheduler" ] && [ "${KERNEL_SOURCE_BRANCH}" != "test/spf-419-ci-enabled" ] && [ "${KERNEL_SOURCE_BRANCH}" != "test/spf-419-ci-disabled" ]; }; then
+                echo "BORE scheduler integration is restricted to the BORE baseline or its SPF test descendants on merlin ARM64"
                 exit 1
             fi
             BORE_CONFIG="arch/${KERNEL_ARCH}/configs/vendor/mt6768_bore.config"
@@ -314,15 +316,22 @@ jobs:
 
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
 
-        if [ "${SPF_SPECULATIVE_PAGE_FAULT:-false}" = "true" ]; then
-            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
-                echo "SPF validation is restricted to merlin ARM64"
-                exit 1
-            fi
-            ./scripts/config --file "$CONFIG_FILE" --enable SPECULATIVE_PAGE_FAULT
-        else
-            ./scripts/config --file "$CONFIG_FILE" --disable SPECULATIVE_PAGE_FAULT
+        if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+            echo "SPF validation is restricted to merlin ARM64"
+            exit 1
         fi
+        case "$KERNEL_SOURCE_BRANCH" in
+            test/spf-419-ci-enabled)
+                ./scripts/config --file "$CONFIG_FILE" --enable SPECULATIVE_PAGE_FAULT
+                ;;
+            test/spf-419-ci-disabled)
+                ./scripts/config --file "$CONFIG_FILE" --disable SPECULATIVE_PAGE_FAULT
+                ;;
+            *)
+                echo "Unsupported SPF test source branch: $KERNEL_SOURCE_BRANCH"
+                exit 1
+                ;;
+        esac
 
         if [ "${{ env.ENABLE_KERNELSU }}" = true ]; then
             if [ "${{ env.KSU_HOOKS_PATCH }}" = true ]; then
@@ -435,11 +444,18 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
         fi
 
-        if [ "${SPF_SPECULATIVE_PAGE_FAULT:-false}" = "true" ]; then
-            grep -qx 'CONFIG_SPECULATIVE_PAGE_FAULT=y' out/.config || { echo "SPF enabled config did not survive olddefconfig"; exit 1; }
-        else
-            grep -qx '# CONFIG_SPECULATIVE_PAGE_FAULT is not set' out/.config || { echo "SPF disabled config did not survive olddefconfig"; exit 1; }
-        fi
+        case "$KERNEL_SOURCE_BRANCH" in
+            test/spf-419-ci-enabled)
+                grep -qx 'CONFIG_SPECULATIVE_PAGE_FAULT=y' out/.config || { echo "SPF enabled config did not survive olddefconfig"; exit 1; }
+                ;;
+            test/spf-419-ci-disabled)
+                grep -qx '# CONFIG_SPECULATIVE_PAGE_FAULT is not set' out/.config || { echo "SPF disabled config did not survive olddefconfig"; exit 1; }
+                ;;
+            *)
+                echo "Unsupported SPF test source branch after olddefconfig: $KERNEL_SOURCE_BRANCH"
+                exit 1
+                ;;
+        esac
 
         # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
         if [ "${ZRAM_MULTICOMP_AUDIT:-false}" = "true" ]; then
