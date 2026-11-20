@@ -316,6 +316,32 @@ jobs:
 
         CONFIG_FILE="$GITHUB_WORKSPACE/kernel_workspace/android-kernel/out/.config"
 
+        # SPF is a Builder-controlled feature. Keep the source branch independent
+        # from the selected setting; only the resolved Kconfig decides whether it is active.
+        if [ -n "${SPECULATIVE_PAGE_FAULT+x}" ]; then
+            case "$SPECULATIVE_PAGE_FAULT" in
+                true|false) ;;
+                *) echo "SPECULATIVE_PAGE_FAULT must be true or false"; exit 1 ;;
+            esac
+            if [ "$DEVICE" != "merlin" ] || [ "$KERNEL_ARCH" != "arm64" ]; then
+                echo "Speculative page faults are currently supported only on merlin ARM64"
+                exit 1
+            fi
+            grep -qx 'config SPECULATIVE_PAGE_FAULT' mm/Kconfig || {
+                echo "Source tree does not define CONFIG_SPECULATIVE_PAGE_FAULT"; exit 1;
+            }
+            grep -q 'select ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT' arch/arm64/Kconfig || {
+                echo "ARM64 source does not advertise speculative page fault support"; exit 1;
+            }
+            if [ "$SPECULATIVE_PAGE_FAULT" = "true" ]; then
+                ./scripts/config --file "$CONFIG_FILE" --enable SPECULATIVE_PAGE_FAULT
+                echo "Requested SPF state: enabled"
+            else
+                ./scripts/config --file "$CONFIG_FILE" --disable SPECULATIVE_PAGE_FAULT
+                echo "Requested SPF state: disabled"
+            fi
+        fi
+
         if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
             echo "SPF validation is restricted to merlin ARM64"
             exit 1
@@ -442,6 +468,36 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=gcc ${{ env.EXTRA_CMDS }} olddefconfig
         else
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
+        fi
+
+        # Verify the requested SPF state after Kconfig dependency resolution.
+        if [ -n "${SPECULATIVE_PAGE_FAULT+x}" ]; then
+            case "$SPECULATIVE_PAGE_FAULT" in
+                true)
+                    grep -qx 'CONFIG_SPECULATIVE_PAGE_FAULT=y' out/.config || {
+                        echo "SPF was requested enabled but Kconfig disabled it; check ARCH_HAS_PTE_SPECIAL, MMU and SMP dependencies"
+                        exit 1
+                    }
+                    grep -qx 'CONFIG_ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT=y' out/.config || {
+                        echo "ARM64 did not resolve ARCH_SUPPORTS_SPECULATIVE_PAGE_FAULT=y"; exit 1;
+                    }
+                    grep -qx 'CONFIG_ARCH_HAS_PTE_SPECIAL=y' out/.config || {
+                        echo "SPF dependency ARCH_HAS_PTE_SPECIAL is not enabled"; exit 1;
+                    }
+                    grep -qx 'CONFIG_MMU=y' out/.config || { echo "SPF dependency MMU is not enabled"; exit 1; }
+                    grep -qx 'CONFIG_SMP=y' out/.config || { echo "SPF dependency SMP is not enabled"; exit 1; }
+                    echo "PASS: resolved config has CONFIG_SPECULATIVE_PAGE_FAULT=y"
+                    ;;
+                false)
+                    grep -qx '# CONFIG_SPECULATIVE_PAGE_FAULT is not set' out/.config || {
+                        echo "SPF was requested disabled but remains enabled after olddefconfig"; exit 1;
+                    }
+                    echo "PASS: resolved config has CONFIG_SPECULATIVE_PAGE_FAULT disabled"
+                    ;;
+                *)
+                    echo "SPECULATIVE_PAGE_FAULT must be true or false"; exit 1
+                    ;;
+            esac
         fi
 
         case "$KERNEL_SOURCE_BRANCH" in
