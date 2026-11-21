@@ -6,6 +6,7 @@ on:
       - test/spf-419-enabled
       - test/spf-419-disabled
       - test/combo-lru-reclaim
+      - test/sukisu-nova-combo-lru-reclaim
   workflow_dispatch:
     inputs:
       select_device:
@@ -37,6 +38,11 @@ on:
         required: true
         default: false
         type: boolean
+      build_sukisu:
+        description: 'Build SukiSU Nova Built-in'
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   generate-build-matrix:
@@ -50,13 +56,19 @@ jobs:
         run: |
           targets=()
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # Keep branch-push validation focused: one Android 13+ xxksu build.
-            targets+=("xxksu")
+            if [[ "${{ github.ref_name }}" == "test/sukisu-nova-combo-lru-reclaim" ]]; then
+              # Dedicated SukiSU Nova Built-in validation branch.
+              targets+=("sukisu")
+            else
+              # Keep existing branch-push validation focused: one Android 13+ xxksu build.
+              targets+=("xxksu")
+            fi
           else
             if [[ "${{ github.event.inputs.build_ksun }}" == "true" ]]; then targets+=("ksun"); fi
             if [[ "${{ github.event.inputs.build_ksun_old }}" == "true" ]]; then targets+=("ksun-old"); fi
             if [[ "${{ github.event.inputs.build_xxksu }}" == "true" ]]; then targets+=("xxksu"); fi
             if [[ "${{ github.event.inputs.build_xxksu_old }}" == "true" ]]; then targets+=("xxksu-old"); fi
+            if [[ "${{ github.event.inputs.build_sukisu }}" == "true" ]]; then targets+=("sukisu"); fi
           fi
           json=$(printf '%s\n' "${targets[@]}" | jq -R . | jq -s '{target: .}')
           echo "matrix<<EOF" >> $GITHUB_OUTPUT
