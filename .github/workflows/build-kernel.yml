@@ -539,8 +539,15 @@ jobs:
                 grep -qx 'CONFIG_DAMON_LRU_SORT=y' out/.config || { echo "DAMON_LRU_SORT was dropped by Kconfig"; exit 1; }
             fi
             grep -q 'damon_reclaim_pages_from_list' mm/vmscan.c || { echo "Node-safe DAMON pageout helper is missing"; exit 1; }
-            grep -q 'deactivate_page(page)' mm/damon/paddr.c || { echo "Hysteris generic LRU deactivation implementation is missing"; exit 1; }
-            echo "PASS: DAMON core, paddr backend and requested policies are enabled"
+            grep -q 'damon_modules_get_shared_paddr_ctx_target' mm/damon/reclaim.c || { echo "DAMON_RECLAIM is not using the shared PADDR context"; exit 1; }
+            grep -q 'damon_modules_get_shared_paddr_ctx_target' mm/damon/lru_sort.c || { echo "DAMON_LRU_SORT is not using the shared PADDR context"; exit 1; }
+            grep -q 'damon_commit_schemes_for_actions' mm/damon/core.c || { echo "Policy-scoped DAMOS scheme updates are missing"; exit 1; }
+            grep -q 'damon_modules_order_paddr_schemes' mm/damon/modules-common.c || { echo "Deterministic shared policy ordering is missing"; exit 1; }
+            grep -q 'deactivate_page_workingset(page)' mm/damon/paddr.c || { echo "Workingset-aware DAMON LRU deactivation is missing"; exit 1; }
+            grep -q 'deactivate_page_workingset' include/linux/swap.h || { echo "Workingset-aware LRU helper declaration is missing"; exit 1; }
+            grep -q 'lru_deactivate_workingset_pvecs' mm/swap.c || { echo "Dedicated workingset-preserving pagevec is missing"; exit 1; }
+            grep -q 'PageActive(page) && page_is_file_cache(page)' mm/vmscan.c || { echo "DAMON direct reclaim does not preserve active file workingset state"; exit 1; }
+            echo "PASS: shared DAMON PADDR policies, LRU ordering and workingset integration are present"
         fi
 
         # Audit the resolved Kconfig after olddefconfig, not just the input fragments.
