@@ -322,6 +322,20 @@ jobs:
             ./scripts/kconfig/merge_config.sh -m -O out "$BASE_CONFIG" "$DEVICE_CONFIG"
         fi
 
+        if [ "${SUKISU_CONFIG:-false}" = "true" ]; then
+            if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
+                echo "SukiSU Nova Built-in profile is restricted to merlin ARM64"
+                exit 1
+            fi
+            SUKISU_CONFIG_FRAGMENT="arch/${KERNEL_ARCH}/configs/vendor/mt6768_sukisu.config"
+            if [ ! -s "$SUKISU_CONFIG_FRAGMENT" ]; then
+                echo "Missing SukiSU Nova config fragment: $SUKISU_CONFIG_FRAGMENT"
+                exit 1
+            fi
+            echo "SukiSU Nova config fragment: $SUKISU_CONFIG_FRAGMENT"
+            ./scripts/kconfig/merge_config.sh -m -O out out/.config "$SUKISU_CONFIG_FRAGMENT"
+        fi
+
         if [ "${BORE_SCHEDULER:-false}" = "true" ]; then
             if [ "$DEVICE" != "merlin" ] || [ "${KERNEL_ARCH}" != "arm64" ]; then
                 echo "BORE scheduler integration is restricted to merlin ARM64"
@@ -499,6 +513,20 @@ jobs:
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=gcc ${{ env.EXTRA_CMDS }} olddefconfig
         else
             make O=out ARCH=${{ env.KERNEL_ARCH }} CC=clang ${{ env.EXTRA_CMDS }} olddefconfig
+        fi
+
+        if [ "${SUKISU_CONFIG:-false}" = "true" ]; then
+            for symbol in CONFIG_SYSFS CONFIG_MULTIUSER CONFIG_SECURITY CONFIG_SECURITY_NETWORK CONFIG_AUDIT CONFIG_NET CONFIG_INET CONFIG_SECURITY_SELINUX CONFIG_KSU CONFIG_KSU_SUSFS CONFIG_KSU_SUSFS_INLINE_HOOK; do
+                grep -qx "${symbol}=y" out/.config || {
+                    echo "SukiSU Nova requires ${symbol}=y after Kconfig resolution"
+                    exit 1
+                }
+            done
+            if grep -qx 'CONFIG_KSU_HACK_ARM64_BRANCH_LINK=y' out/.config; then
+                echo "Unexpected ARM64 branch-link backend enabled alongside KSU_SUSFS"
+                exit 1
+            fi
+            echo "PASS: Built-in KSU + SUSFS inline-hook configuration resolved"
         fi
 
         # Verify the requested SPF state after Kconfig dependency resolution.
